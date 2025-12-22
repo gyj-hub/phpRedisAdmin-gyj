@@ -146,7 +146,7 @@ if (($count_elements_page !== false) && in_array($type, array('hash', 'list', 's
     $lpm1       = $lastpage - 1;
     $adjacents  = 3;
     $pagination = '<div style="width: inherit; word-wrap: break-word;">';
-    $url        = preg_replace('/&page=(\d+)/i', '', $_SERVER['REQUEST_URI']);
+    $url        = preg_replace('/&page=(\d+)/i', '', getRelativePath('view.php'));
 
     if ($page_num_request > 1) $pagination .= "<a href=\"$url&page=$prev\">&#8592;</a>&nbsp;"; else
         $pagination .= "&#8592;&nbsp;";
@@ -311,4 +311,3 @@ if (isset($pagination)) {
 }
 
 require 'includes/footer.inc.php';
-

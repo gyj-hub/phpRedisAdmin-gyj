@@ -5,7 +5,8 @@ $config = array(
   'servers' => array(
     array(
       'name'   => 'local server', // Optional name.
-      'host'   => '127.0.0.1',
+//      'host'   => '127.0.0.1',
+      'host'   => '192.168.50.22',
       'port'   => 6379,
       'filter' => '*',
       'scheme' => 'tcp', // Optional. Connection scheme. 'tcp' - for TCP connection, 'unix' - for connection by unix domain socket
@@ -14,6 +15,7 @@ $config = array(
 
       // Optional Redis authentication.
       //'auth' => 'redispasswordhere' // Warning: The password is sent in plain-text to the Redis server.
+      'auth' => '123456' // Warning: The password is sent in plain-text to the Redis server.
     ),
 
     /*array(

@@ -49,6 +49,16 @@ docker run --rm -it -e REDIS_1_HOST=myredis.host -e REDIS_1_NAME=MyRedis -p 80:8
 ```
 Also, a Docker Compose manifest with a stack for testing and development is provided. Just issue ```docker-compose up --build``` to start it and browse to http://localhost. See ```docker-compose.yml``` file for configuration details.
 
+
+New Feature: Type Filtering
+==========================
+This project adds a new feature on top of the original phpRedisAdmin:
+
+- **Type Filtering on Web UI**: You can now filter and display Redis keys by their type (such as hash, set, list, string, zset, etc.) directly in the web interface. This makes it easier to locate and manage specific types of data in your Redis database.
+
+
+For Simplified Chinese instructions, see [README-zh_CN.md](README-zh_CN.md)
+
 Environment variables summary
 ====
 

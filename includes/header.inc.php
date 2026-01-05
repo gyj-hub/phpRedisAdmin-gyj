@@ -7,7 +7,7 @@ header('Cache-Control: private');
 header('X-Frame-Options: sameorigin');
 
 ?><!DOCTYPE html>
-<html lang=en>
+<html lang="<?php echo isset($page['lang']) ? $page['lang'] : 'en'; ?>">
 <head>
 <meta charset=utf-8>
 

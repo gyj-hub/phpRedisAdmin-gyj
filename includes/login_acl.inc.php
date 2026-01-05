@@ -2,7 +2,13 @@
 
 function authCheck($login)
 {
-    global $redis;
+    global $redis, $server;
+
+    // ACL authentication is not supported in cluster mode through auth() method
+    // In cluster mode, authentication should be done during client creation
+    if (isset($server['cluster']) && $server['cluster']) {
+        return false; // ACL auth not supported in cluster mode
+    }
 
     try {
         $redis->auth($login['username'], $login['password']);

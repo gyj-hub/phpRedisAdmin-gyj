@@ -137,32 +137,65 @@ $(function() {
     }
   });
 
+  // 防抖函数，避免频繁触发过滤
+  var debounce = function(func, wait) {
+    var timeout;
+    return function() {
+      var context = this, args = arguments;
+      clearTimeout(timeout);
+      timeout = setTimeout(function() {
+        func.apply(context, args);
+      }, wait);
+    };
+  };
+
+  // 缓存元素引用
+  var $keyItems = null;
+  var $folderItems = null;
+  
+  var filterKeys = function() {
+    var val = $('#filter').val().toLowerCase(); // 转小写以支持不区分大小写的搜索
+    
+    // 如果是初次过滤，缓存元素
+    if (!$keyItems) {
+      $keyItems = $('li:not(.folder)');
+      $folderItems = $('li.folder');
+    }
+    
+    // 使用 DocumentFragment 来批量更新 DOM
+    var fragment = document.createDocumentFragment();
+    
+    // 过滤键
+    $keyItems.each(function(i, el) {
+      var $el = $(el);
+      var anchor = $('a', el).get(0);
+      if (!anchor) return;
+      
+      var href = anchor.href;
+      var keyIndex = href.indexOf('key=');
+      if (keyIndex === -1) return;
+      
+      var key = unescape(href.substr(keyIndex + 4)).toLowerCase();
+      
+      // 使用 toggle 代替 addClass/removeClass
+      $el.toggleClass('hidden', key.indexOf(val) === -1);
+    });
+    
+    // 过滤文件夹（延迟执行，避免重复计算）
+    requestAnimationFrame(function() {
+      $folderItems.each(function(i, el) {
+        var $el = $(el);
+        var hasVisibleChildren = $('li:not(.hidden, .folder)', el).length > 0;
+        $el.toggleClass('hidden', !hasVisibleChildren);
+      });
+    });
+  };
+
   $('#filter').focus(function() {
     if ($(this).hasClass('info')) {
       $(this).removeClass('info').val('');
     }
-  }).keyup(function() {
-    var val = $(this).val();
-
-    $('li:not(.folder)').each(function(i, el) {
-      var key = $('a', el).get(0);
-      var key = unescape(key.href.substr(key.href.indexOf('key=') + 4));
-
-      if (key.indexOf(val) == -1) {
-        $(el).addClass('hidden');
-      } else {
-        $(el).removeClass('hidden');
-      }
-    });
-
-    $('li.folder').each(function(i, el) {
-      if ($('li:not(.hidden, .folder)', el).length == 0) {
-        $(el).addClass('hidden');
-      } else {
-        $(el).removeClass('hidden');
-      }
-    });
-  });
+  }).on('input', debounce(filterKeys, 150)); // 使用 input 事件和防抖
 
   var isResizing = false;
   var lastDownX  = 0;

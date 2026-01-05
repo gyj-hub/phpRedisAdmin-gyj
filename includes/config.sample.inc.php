@@ -15,7 +15,16 @@ $config = array(
 
       // Optional Redis authentication.
       //'auth' => 'redispasswordhere' // Warning: The password is sent in plain-text to the Redis server.
-      'auth' => '123456' // Warning: The password is sent in plain-text to the Redis server.
+      'auth' => '123456', // Warning: The password is sent in plain-text to the Redis server.
+      
+      // Optional Redis Cluster support.
+      // Set to true to enable cluster mode. When enabled, phpRedisAdmin will connect to all cluster nodes.
+      // 'cluster' => true,
+      // Optional: Specify additional cluster nodes (only needed if cluster is true)
+      // 'cluster_nodes' => array(
+      //   array('host' => '192.168.50.23', 'port' => 6379),
+      //   array('host' => '192.168.50.24', 'port' => 6379),
+      // ),
     ),
 
     /*array(

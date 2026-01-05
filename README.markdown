@@ -52,9 +52,11 @@ Also, a Docker Compose manifest with a stack for testing and development is prov
 
 New Feature: Type Filtering
 ==========================
-This project adds a new feature on top of the original phpRedisAdmin:
+This project adds new features on top of the original phpRedisAdmin:
 
 - **Type Filtering on Web UI**: You can now filter and display Redis keys by their type (such as hash, set, list, string, zset, etc.) directly in the web interface. This makes it easier to locate and manage specific types of data in your Redis database.
+
+- **Redis Cluster Support**: Added support for Redis Cluster mode. When connecting to a Redis cluster, you can now view and manage keys from all cluster nodes, not just a single node. See [REDIS_CLUSTER.md](REDIS_CLUSTER.md) for configuration details.
 
 
 For Simplified Chinese instructions, see [README-zh_CN.md](README-zh_CN.md)
@@ -68,7 +70,9 @@ Environment variables summary
 * ``REDIS_1_SCHEME`` - define scheme of the Redis server (tcp or tls)
 * ``REDIS_1_AUTH`` - define password of the Redis server
 * ``REDIS_1_AUTH_FILE`` - define file containing the password of the Redis server
-* ``REDIS_1_DATABASES`` - You can modify you config to prevent phpRedisAdmin from using CONFIG command 
+* ``REDIS_1_DATABASES`` - You can modify you config to prevent phpRedisAdmin from using CONFIG command
+* ``REDIS_1_CLUSTER`` - set to `true` to enable Redis Cluster mode
+* ``REDIS_1_CLUSTER_NODES`` - comma-separated list of additional cluster nodes (format: `host1:port1,host2:port2`)
 * ``ADMIN_USER`` - define username for user-facing Basic Auth
 * ``ADMIN_PASS`` - define password for user-facing Basic Auth
 

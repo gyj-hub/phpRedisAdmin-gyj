@@ -9,6 +9,16 @@ phpRedisAdmin 是一个简单的 Web 界面，用于管理 [Redis](http://redis.
 
 在原有基础上，新增了页面过滤功能。现在你可以在界面上根据 Redis 键的类型（如 hash、set、list、string、zset 等）进行筛选和过滤，方便快速定位和管理特定类型的数据。
 
+**Redis 集群支持**
+
+新增了 Redis 集群模式支持。当连接到 Redis 集群时，可以查看和管理所有集群节点的数据，而不仅仅是单个节点。详细配置方法请参考 [Redis 集群配置说明](REDIS_CLUSTER.md)。
+
+主要特性：
+- 自动连接到所有集群节点
+- 支持跨节点查询和操作
+- 自动处理槽位路由
+- 支持集群密码认证
+
 ## 安装与配置
 
 ### 使用 Docker
@@ -39,6 +49,8 @@ phpRedisAdmin 是一个简单的 Web 界面，用于管理 [Redis](http://redis.
 - `REDIS_1_PORT`：Redis 端口
 - `REDIS_1_SCHEME`：连接协议（tcp 或 tls）
 - `REDIS_1_AUTH`：Redis 密码
+- `REDIS_1_CLUSTER`：设置为 `true` 启用 Redis 集群模式
+- `REDIS_1_CLUSTER_NODES`：逗号分隔的额外集群节点列表（格式：`host1:port1,host2:port2`）
 - `ADMIN_USER`：登录用户名
 - `ADMIN_PASS`：登录密码
 

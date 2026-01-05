@@ -1,9 +1,9 @@
 {
-    "name": "erik-dubbelboer/php-redis-admin",
-    "description": "Simple web interface to manage Redis databases.",
-    "version": "1.27.0",
+    "name": "gyjhub/phpredisadmin-gyj",
+    "description": "Simple web interface to manage Redis databases with cluster support.",
+    "version": "1.28.0",
     "license": "CC-BY-3.0",
-    "homepage": "https://github.com/ErikDubbelboer/phpRedisAdmin",
+    "homepage": "https://github.com/gyj-hub/phpRedisAdmin-gyj",
     "authors": [
         {
             "name": "Erik Dubbelboer",
@@ -19,5 +19,5 @@
         "paragonie/random_compat": ">=2"
     },
     "minimum-stability": "stable",
-    "target-dir": "ErikDubbelboer/phpRedisAdmin"
+    "target-dir": "gyj-hub/phpRedisAdmin"
 }

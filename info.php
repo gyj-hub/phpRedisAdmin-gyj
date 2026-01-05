@@ -4,14 +4,48 @@ require_once 'includes/common.inc.php';
 global $redis, $config, $csrfToken, $server;
 
 if (isset($_GET['reset'])) {
-  $redis->config('resetstat');
+  // CONFIG command is not supported in cluster mode
+  if (!isset($server['cluster']) || !$server['cluster']) {
+    try {
+      $redis->config('resetstat');
+    } catch (Exception $e) {
+      // Ignore error
+    }
+  }
 
   header('Location: info.php');
   die;
 }
 
 // Fetch the info
-$info = $redis->info();
+// In cluster mode, INFO command needs special handling
+if (isset($server['cluster']) && $server['cluster']) {
+  try {
+    $info = $redis->executeRaw(['INFO']);
+    // Parse INFO response if it's a string
+    if (is_string($info)) {
+      $parsedInfo = array();
+      $lines = explode("\r\n", $info);
+      foreach ($lines as $line) {
+        $line = trim($line);
+        if (empty($line) || $line[0] === '#') continue;
+        $parts = explode(':', $line, 2);
+        if (count($parts) === 2) {
+          $parsedInfo[$parts[0]] = $parts[1];
+        }
+      }
+      $info = $parsedInfo;
+    }
+  } catch (Exception $e) {
+    $info = array('error' => 'Cluster mode: INFO command limited');
+  }
+} else {
+  try {
+    $info = $redis->info();
+  } catch (Exception $e) {
+    $info = array('error' => $e->getMessage());
+  }
+}
 $alt  = false;
 
 $page['css'][] = 'frame';

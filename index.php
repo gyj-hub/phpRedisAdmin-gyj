@@ -5,20 +5,76 @@ global $redis, $config, $csrfToken, $server;
 
 if($redis) {
 
-    if (!empty($server['keys'])) {
-        $keys = $redis->keys($server['filter']);
-    } else {
-        $next = 0;
-        $keys = array();
-        while (true) {
-            $r = $redis->scan($next, 'MATCH', $server['filter'], 'COUNT', $server['scansize']);
-            $next = $r[0];
-            $keys = array_merge($keys, $r[1]);
-            if ($next == 0) {
-                break;
+    $keys = array();
+    
+    // In Redis Cluster mode, we need to fetch keys from each node separately
+    if (isset($server['cluster']) && $server['cluster']) {
+        try {
+            // Get all master nodes from the cluster
+            $connection = $redis->getConnection();
+            
+            // Execute CLUSTER SLOTS to get all master nodes
+            $clusterSlots = $redis->executeRaw(['CLUSTER', 'SLOTS']);
+            
+            $masterNodes = array();
+            foreach ($clusterSlots as $slot) {
+                // Each slot contains: [start, end, [host, port, node-id], ...]
+                // The third element (index 2) is the master node
+                if (isset($slot[2])) {
+                    $nodeKey = $slot[2][0] . ':' . $slot[2][1];
+                    $masterNodes[$nodeKey] = array('host' => $slot[2][0], 'port' => $slot[2][1]);
+                }
             }
-            if ($server['scanmax'] > 0 && count($keys) >= $server['scanmax']) {
-                break;
+            
+            // Connect to each master node and fetch keys
+            foreach ($masterNodes as $node) {
+                try {
+                    $nodeClient = new Predis\Client(array(
+                        'scheme' => $server['scheme'],
+                        'host'   => $node['host'],
+                        'port'   => $node['port'],
+                        'password' => isset($server['auth']) ? $server['auth'] : null,
+                    ));
+                    
+                    $nodeKeys = $nodeClient->keys($server['filter']);
+                    $keys = array_merge($keys, $nodeKeys);
+                    
+                    $nodeClient->disconnect();
+                } catch (Exception $e) {
+                    // Continue with other nodes if one fails
+                    error_log("Failed to get keys from node {$node['host']}:{$node['port']}: " . $e->getMessage());
+                }
+            }
+            
+            // Remove duplicates (shouldn't happen in a well-configured cluster, but just in case)
+            $keys = array_unique($keys);
+            
+        } catch (Exception $e) {
+            // Fallback: try direct KEYS command (may fail, but worth trying)
+            error_log("Cluster SLOTS command failed: " . $e->getMessage());
+            try {
+                $keys = $redis->keys($server['filter']);
+            } catch (Exception $e2) {
+                $keys = array();
+                error_log("Direct KEYS command also failed: " . $e2->getMessage());
+            }
+        }
+    } else {
+        // Standard single-server mode
+        if (!empty($server['keys'])) {
+            $keys = $redis->keys($server['filter']);
+        } else {
+            $next = 0;
+            while (true) {
+                $r = $redis->scan($next, 'MATCH', $server['filter'], 'COUNT', $server['scansize']);
+                $next = $r[0];
+                $keys = array_merge($keys, $r[1]);
+                if ($next == 0) {
+                    break;
+                }
+                if ($server['scanmax'] > 0 && count($keys) >= $server['scanmax']) {
+                    break;
+                }
             }
         }
     }
@@ -212,13 +268,29 @@ require 'includes/header.inc.php';
 <?php if($redis) { ?>
 
 <?php
-if (isset($server['databases'])) {
-  $databases = $server['databases'];
+// In cluster mode, CONFIG and INFO commands are not supported
+// Redis Cluster only supports database 0
+if (isset($server['cluster']) && $server['cluster']) {
+  $databases = 1; // Cluster mode only supports db0
+  $info = array(); // Skip INFO command in cluster mode
 } else {
-  $databases = $redis->config('GET', 'databases');
-  $databases = $databases['databases'];
+  if (isset($server['databases'])) {
+    $databases = $server['databases'];
+  } else {
+    try {
+      $databases = $redis->config('GET', 'databases');
+      $databases = $databases['databases'];
+    } catch (Exception $e) {
+      $databases = 16; // Default fallback
+    }
+  }
+  try {
+    $info = $redis->info();
+  } catch (Exception $e) {
+    $info = array();
+  }
 }
-$info = $redis->info(); $len = strlen((string)($databases-1));
+$len = strlen((string)($databases-1));
 if ($databases > 1) { ?>
   <select id="database">
   <?php for ($d = 0; $d < $databases; ++$d) { if (($dbinfo=getDbInfo($d, $info, $len)) === false) continue; ?>
@@ -250,7 +322,7 @@ if ($databases > 1) { ?>
 </p>
 
 <p>
-<input type="text" id="filter" size="40" value="type here to filter" placeholder="type here to filter" class="info">
+<input type="text" id="filter" size="40" value="本地筛选key" placeholder="本地筛选key" class="info">
 </p>
 <button id="selected_all_keys">Select all</button>
 <button id="operations">

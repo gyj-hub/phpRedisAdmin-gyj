@@ -130,21 +130,52 @@ if (!isset($server['scheme']) || empty($server['scheme'])) {
 }
 
 // Setup a connection to Redis.
-if ($server['scheme'] === 'unix' && $server['path']) {
-  $redis = new Predis\Client(array('scheme' => 'unix', 'path' => $server['path']));
-} else {
-  $redis = !$server['port'] ? new Predis\Client($server['host']) : new Predis\Client($server['scheme'].'://'.$server['host'].':'.$server['port']);
-}
-
-try {
+if (isset($server['cluster']) && $server['cluster']) {
+  // Redis Cluster mode
+  $clusterNodes = array();
+  
+  // Add the main server node
+  $clusterNodes[] = $server['scheme'].'://'.$server['host'].':'.$server['port'];
+  
+  // Add additional cluster nodes if specified
+  if (isset($server['cluster_nodes']) && is_array($server['cluster_nodes'])) {
+    foreach ($server['cluster_nodes'] as $node) {
+      $scheme = isset($node['scheme']) ? $node['scheme'] : $server['scheme'];
+      $clusterNodes[] = $scheme.'://'.$node['host'].':'.$node['port'];
+    }
+  }
+  
+  $options = array('cluster' => 'redis');
+  
+  // Add authentication if configured
+  if (isset($server['auth'])) {
+    $options['parameters'] = array('password' => $server['auth']);
+  }
+  
+  try {
+    $redis = new Predis\Client($clusterNodes, $options);
     $redis->connect();
-} catch (Predis\CommunicationException $exception) {
+  } catch (Predis\CommunicationException $exception) {
     die('ERROR: ' . $exception->getMessage());
-}
+  }
+} else {
+  // Standard single-server mode
+  if ($server['scheme'] === 'unix' && $server['path']) {
+    $redis = new Predis\Client(array('scheme' => 'unix', 'path' => $server['path']));
+  } else {
+    $redis = !$server['port'] ? new Predis\Client($server['host']) : new Predis\Client($server['scheme'].'://'.$server['host'].':'.$server['port']);
+  }
 
-if (isset($server['auth'])) {
-  if (!$redis->auth($server['auth'])) {
-    die('ERROR: Authentication failed ('.$server['host'].':'.$server['port'].')');
+  try {
+      $redis->connect();
+  } catch (Predis\CommunicationException $exception) {
+      die('ERROR: ' . $exception->getMessage());
+  }
+
+  if (isset($server['auth'])) {
+    if (!$redis->auth($server['auth'])) {
+      die('ERROR: Authentication failed ('.$server['host'].':'.$server['port'].')');
+    }
   }
 }
 
@@ -152,7 +183,8 @@ if (!isset($config['login']) && !empty($config['login_as_acl_auth'])) {
   require_once PHPREDIS_ADMIN_PATH . '/includes/login_acl.inc.php';
 }
 
-if ($server['db'] != 0) {
+// Cluster mode only supports database 0
+if ($server['db'] != 0 && (!isset($server['cluster']) || !$server['cluster'])) {
   if (!$redis->select($server['db'])) {
     die('ERROR: Selecting database failed ('.$server['host'].':'.$server['port'].','.$server['db'].')');
   }

@@ -43,6 +43,8 @@ while (true) {
     $server_auth = getenv($prefix . 'AUTH');
   }
   $server_databases = getenv($prefix . 'DATABASES');
+  $server_cluster = getenv($prefix . 'CLUSTER');
+  $server_cluster_nodes = getenv($prefix . 'CLUSTER_NODES');
 
   if (empty($server_host)) {
     break;
@@ -80,6 +82,32 @@ while (true) {
 
   if (!empty($server_databases)) {
     $config['servers'][$i-1]['databases'] = $server_databases;
+  }
+
+  // Add cluster support
+  if (!empty($server_cluster) && ($server_cluster === 'true' || $server_cluster === '1' || $server_cluster === true)) {
+    $config['servers'][$i-1]['cluster'] = true;
+    
+    // Parse cluster nodes if provided (format: "host1:port1,host2:port2,host3:port3")
+    if (!empty($server_cluster_nodes)) {
+      $nodes = explode(',', $server_cluster_nodes);
+      $cluster_nodes = array();
+      
+      foreach ($nodes as $node) {
+        $node = trim($node);
+        if (strpos($node, ':') !== false) {
+          list($node_host, $node_port) = explode(':', $node, 2);
+          $cluster_nodes[] = array(
+            'host' => trim($node_host),
+            'port' => intval(trim($node_port)),
+          );
+        }
+      }
+      
+      if (!empty($cluster_nodes)) {
+        $config['servers'][$i-1]['cluster_nodes'] = $cluster_nodes;
+      }
+    }
   }
 
   $i++;

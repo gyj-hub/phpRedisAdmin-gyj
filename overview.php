@@ -18,36 +18,142 @@ foreach ($config['servers'] as $i => $server) {
     }
   } else {
     // Setup a connection to Redis.
-    if(isset($server['scheme']) && $server['scheme'] === 'unix' && $server['path']) {
-      $redis = new Predis\Client(array('scheme' => 'unix', 'path' => $server['path']));
+    if (isset($server['cluster']) && $server['cluster']) {
+      // Redis Cluster mode
+      $clusterNodes = array();
+      
+      // Add the main server node
+      $scheme = isset($server['scheme']) ? $server['scheme'] : 'tcp';
+      $clusterNodes[] = $scheme.'://'.$server['host'].':'.$server['port'];
+      
+      // Add additional cluster nodes if specified
+      if (isset($server['cluster_nodes']) && is_array($server['cluster_nodes'])) {
+        foreach ($server['cluster_nodes'] as $node) {
+          $nodeScheme = isset($node['scheme']) ? $node['scheme'] : $scheme;
+          $clusterNodes[] = $nodeScheme.'://'.$node['host'].':'.$node['port'];
+        }
+      }
+      
+      $options = array('cluster' => 'redis');
+      
+      // Add authentication if configured
+      if (isset($server['auth'])) {
+        $options['parameters'] = array('password' => $server['auth']);
+      }
+      
+      try {
+        $redis = new Predis\Client($clusterNodes, $options);
+        $redis->connect();
+      } catch (Predis\CommunicationException $exception) {
+        $redis = false;
+      }
     } else {
-      $redis = !$server['port'] ? new Predis\Client($server['host']) : new Predis\Client('tcp://'.$server['host'].':'.$server['port']);
-    }
-    try {
-      $redis->connect();
-    } catch (Predis\CommunicationException $exception) {
-      $redis = false;
+      // Standard single-server mode
+      if(isset($server['scheme']) && $server['scheme'] === 'unix' && $server['path']) {
+        $redis = new Predis\Client(array('scheme' => 'unix', 'path' => $server['path']));
+      } else {
+        $redis = !$server['port'] ? new Predis\Client($server['host']) : new Predis\Client('tcp://'.$server['host'].':'.$server['port']);
+      }
+      try {
+        $redis->connect();
+      } catch (Predis\CommunicationException $exception) {
+        $redis = false;
+      }
     }
   }
 
   if(!$redis) {
       $info[$i] = false;
   } else {
-      if (isset($server['auth'])) {
-        if (!$redis->auth($server['auth'])) {
-          die('ERROR: Authentication failed ('.$server['host'].':'.$server['port'].')');
+      // In cluster mode, authentication is handled during client creation
+      // Do not call auth() method separately
+      if (!isset($server['cluster']) || !$server['cluster']) {
+        if (isset($server['auth'])) {
+          if (!$redis->auth($server['auth'])) {
+            die('ERROR: Authentication failed ('.$server['host'].':'.$server['port'].')');
+          }
         }
       }
-      if ($server['db'] != 0) {
+      
+      // Cluster mode only supports database 0
+      if ($server['db'] != 0 && (!isset($server['cluster']) || !$server['cluster'])) {
         if (!$redis->select($server['db'])) {
           die('ERROR: Selecting database failed ('.$server['host'].':'.$server['port'].','.$server['db'].')');
         }
       }
 
-      $info[$i]         = $redis->info();
-      $info[$i]['size'] = $redis->dbSize();
+      // In cluster mode, INFO command may not work as expected
+      try {
+        if (isset($server['cluster']) && $server['cluster']) {
+          // Try to get basic info from cluster
+          $info[$i] = $redis->executeRaw(['INFO']);
+          if (is_string($info[$i])) {
+            $parsed = array();
+            $lines = explode("\r\n", $info[$i]);
+            foreach ($lines as $line) {
+              $line = trim($line);
+              if (empty($line) || $line[0] === '#') continue;
+              $parts = explode(':', $line, 2);
+              if (count($parts) === 2) {
+                $parsed[$parts[0]] = $parts[1];
+              }
+            }
+            $info[$i] = $parsed;
+          }
+        } else {
+          $info[$i] = $redis->info();
+        }
+      } catch (Exception $e) {
+        $info[$i] = array('error' => 'Could not retrieve info');
+      }
+      
+      // DBSIZE command handling for cluster mode
+      if (isset($server['cluster']) && $server['cluster']) {
+        // In cluster mode, we need to get size from all nodes
+        try {
+          $clusterSlots = $redis->executeRaw(['CLUSTER', 'SLOTS']);
+          $masterNodes = array();
+          foreach ($clusterSlots as $slot) {
+            if (isset($slot[2])) {
+              $nodeKey = $slot[2][0] . ':' . $slot[2][1];
+              $masterNodes[$nodeKey] = array('host' => $slot[2][0], 'port' => $slot[2][1]);
+            }
+          }
+          
+          $totalSize = 0;
+          foreach ($masterNodes as $node) {
+            try {
+              $nodeClient = new Predis\Client(array(
+                'scheme' => $server['scheme'],
+                'host'   => $node['host'],
+                'port'   => $node['port'],
+                'password' => isset($server['auth']) ? $server['auth'] : null,
+              ));
+              $totalSize += $nodeClient->dbSize();
+              $nodeClient->disconnect();
+            } catch (Exception $e) {
+              error_log("Failed to get dbSize from node {$node['host']}:{$node['port']}: " . $e->getMessage());
+            }
+          }
+          $info[$i]['size'] = $totalSize;
+        } catch (Exception $e) {
+          $info[$i]['size'] = 0;
+          error_log("Failed to get cluster size: " . $e->getMessage());
+        }
+      } else {
+        try {
+          $info[$i]['size'] = $redis->dbSize();
+        } catch (Exception $e) {
+          $info[$i]['size'] = 0;
+        }
+      }
+      
       if (isset($config['login_as_acl_auth'])) {
-        $info[$i]['username'] = $redis->acl->whoami();
+        try {
+          $info[$i]['username'] = $redis->acl->whoami();
+        } catch (Exception $e) {
+          // ACL not supported or error
+        }
       }
 
       if (!isset($info[$i]['Server'])) {
